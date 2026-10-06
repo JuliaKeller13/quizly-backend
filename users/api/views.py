@@ -1,11 +1,13 @@
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from users.utils import (
+    blacklist_auth_tokens,
     create_access_token,
     create_auth_tokens,
+    delete_auth_cookies,
     get_refresh_token,
     set_access_cookie,
     set_auth_cookies,
@@ -19,6 +21,7 @@ from .serializers import (
 
 
 class RegistrationView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -38,6 +41,7 @@ class RegistrationView(APIView):
 
 
 class LoginView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -64,6 +68,7 @@ class LoginView(APIView):
 
 
 class TokenRefreshView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -76,3 +81,28 @@ class TokenRefreshView(APIView):
         )
         set_access_cookie(response, access_token)
         return response
+
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        blacklist_auth_tokens(
+            request.COOKIES["access_token"],
+            request.COOKIES.get("refresh_token"),
+            request.user,
+        )
+        response = self._create_response()
+        delete_auth_cookies(response)
+        return response
+
+    def _create_response(self):
+        return Response(
+            {
+                "detail": (
+                    "Log-Out successfully! "
+                    "All Tokens will be deleted."
+                )
+            },
+            status=status.HTTP_200_OK,
+        )

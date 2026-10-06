@@ -3,7 +3,13 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from users.utils import create_auth_tokens, set_auth_cookies
+from users.utils import (
+    create_access_token,
+    create_auth_tokens,
+    get_refresh_token,
+    set_access_cookie,
+    set_auth_cookies,
+)
 
 from .serializers import (
     LoginSerializer,
@@ -55,3 +61,18 @@ class LoginView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class TokenRefreshView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        refresh_token = get_refresh_token(request)
+        access_token = create_access_token(refresh_token)
+
+        response = Response(
+            {"detail": "Token refreshed"},
+            status=status.HTTP_200_OK,
+        )
+        set_access_cookie(response, access_token)
+        return response

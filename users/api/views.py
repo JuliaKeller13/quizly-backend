@@ -3,7 +3,13 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .serializers import RegistrationSerializer
+from users.utils import create_auth_tokens, set_auth_cookies
+
+from .serializers import (
+    LoginSerializer,
+    RegistrationSerializer,
+    UserSerializer,
+)
 
 
 class RegistrationView(APIView):
@@ -22,4 +28,30 @@ class RegistrationView(APIView):
         return Response(
             {"detail": "User created successfully!"},
             status=status.HTTP_201_CREATED,
+        )
+
+
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = LoginSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data["user"]
+        access_token, refresh_token = create_auth_tokens(user)
+        user_data = UserSerializer(user).data
+        response = self._create_response(user_data)
+        set_auth_cookies(response, access_token, refresh_token)
+        return response
+
+    def _create_response(self, user_data):
+        return Response(
+            {
+                "detail": "Login successfully!",
+                "user": user_data,
+            },
+            status=status.HTTP_200_OK,
         )

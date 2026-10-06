@@ -1,7 +1,20 @@
+from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
 from users.models import User
+from .exceptions import InvalidCredentials
+
+
+class UserSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+        ]
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
@@ -20,7 +33,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
         }
 
     def validate_email(self, value):
-        if User.objects.filter(email=value).exists():
+        if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError(
                 "A user with this email already exists."
             )
@@ -45,3 +58,21 @@ class RegistrationSerializer(serializers.ModelSerializer):
             password=password,
             **validated_data,
         )
+
+
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        user = authenticate(
+            request=self.context.get("request"),
+            username=attrs["username"],
+            password=attrs["password"],
+        )
+
+        if user is None:
+            raise InvalidCredentials()
+
+        attrs["user"] = user
+        return attrs

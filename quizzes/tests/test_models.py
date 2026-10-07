@@ -60,3 +60,36 @@ class QuestionModelTests(TestCase):
         )
 
         self.assertEqual(question.quiz, self.quiz)
+
+    def test_deleting_quiz_deletes_questions(self):
+        """Ensures that deleting a quiz removes its questions."""
+        question = Question.objects.create(
+            quiz=self.quiz,
+            question_title="Question 1",
+            question_options=["A", "B", "C", "D"],
+            answer="A",
+        )
+
+        self.quiz.delete()
+
+        self.assertFalse(
+            Question.objects.filter(id=question.id).exists()
+        )
+
+    def test_question_options_are_stored_as_list(self):
+        """Ensures that question options are stored as a list."""
+        options = [
+            "Option A",
+            "Option B",
+            "Option C",
+            "Option D",
+        ]
+
+        question = Question.objects.create(
+            quiz=self.quiz,
+            question_title="Question 1",
+            question_options=options,
+            answer="Option A",
+        )
+
+        self.assertEqual(question.question_options, options)

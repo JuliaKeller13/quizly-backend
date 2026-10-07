@@ -83,6 +83,7 @@ class RegistrationTests(APITestCase):
         )
 
     def test_registration_fails_with_existing_email(self):
+        """Rejects an email address that is already registered."""
         User.objects.create_user(
             username="differentUsername",
             email=self.data["email"],
@@ -99,6 +100,7 @@ class RegistrationTests(APITestCase):
             response.status_code,
             status.HTTP_400_BAD_REQUEST,
         )
+        self.assertIn("email", response.data)
 
     def test_registration_fails_with_missing_username(self):
         self.data.pop("username")

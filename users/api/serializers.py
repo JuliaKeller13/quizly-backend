@@ -45,6 +45,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
             "email": {
                 "required": True,
                 "allow_blank": False,
+                "validators": [],
             },
         }
 

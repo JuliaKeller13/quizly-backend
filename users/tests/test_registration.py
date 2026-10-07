@@ -113,3 +113,67 @@ class RegistrationTests(APITestCase):
             response.status_code,
             status.HTTP_400_BAD_REQUEST,
         )
+
+    def test_registration_fails_without_email(self):
+        """Ensures that email is required."""
+        self.data.pop("email")
+
+        response = self.client.post(
+            self.url,
+            self.data,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+
+    def test_registration_fails_with_blank_email(self):
+        """Ensures that email cannot be blank."""
+        self.data["email"] = ""
+
+        response = self.client.post(
+            self.url,
+            self.data,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+
+    def test_registration_fails_with_short_username(self):
+        """Ensures that usernames contain at least three characters."""
+        self.data["username"] = "ab"
+
+        response = self.client.post(
+            self.url,
+            self.data,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+
+    def test_registration_fails_with_weak_password(self):
+        """Ensures that passwords meet Quizly's requirements."""
+        self.data["password"] = "lowercase123"
+        self.data["confirmed_password"] = "lowercase123"
+
+        response = self.client.post(
+            self.url,
+            self.data,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )

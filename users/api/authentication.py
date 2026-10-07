@@ -7,6 +7,7 @@ class CookieJWTAuthentication(JWTAuthentication):
     """Authenticates users with the access token cookie."""
 
     def authenticate(self, request):
+        """Authenticates a request using its access-token cookie."""
         raw_token = request.COOKIES.get("access_token")
 
         if raw_token is None:
@@ -18,6 +19,7 @@ class CookieJWTAuthentication(JWTAuthentication):
         return user, validated_token
 
     def _check_blacklist(self, token):
+        """Rejects access tokens stored in the blacklist."""
         is_blacklisted = BlacklistedToken.objects.filter(
             token__jti=token["jti"]
         ).exists()

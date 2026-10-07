@@ -21,19 +21,17 @@ from .serializers import (
 
 
 class RegistrationView(APIView):
+    """Handles user registration requests."""
+
     authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
+        """Registers a new user."""
         serializer = RegistrationSerializer(data=request.data)
-
-        if not serializer.is_valid():
-            return Response(
-                serializer.errors,
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        serializer.is_valid(raise_exception=True)
         serializer.save()
+
         return Response(
             {"detail": "User created successfully!"},
             status=status.HTTP_201_CREATED,
@@ -41,10 +39,13 @@ class RegistrationView(APIView):
 
 
 class LoginView(APIView):
+    """Handles user login requests."""
+
     authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
+        """Authenticates a user and sets JWT cookies."""
         serializer = LoginSerializer(
             data=request.data,
             context={"request": request},
@@ -58,6 +59,7 @@ class LoginView(APIView):
         return response
 
     def _create_response(self, user_data):
+        """Creates the successful login response."""
         return Response(
             {
                 "detail": "Login successfully!",
@@ -68,10 +70,13 @@ class LoginView(APIView):
 
 
 class TokenRefreshView(APIView):
+    """Handles access-token refresh requests."""
+
     authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
+        """Creates a new access token from the refresh cookie."""
         refresh_token = get_refresh_token(request)
         access_token = create_access_token(refresh_token)
 
@@ -84,9 +89,12 @@ class TokenRefreshView(APIView):
 
 
 class LogoutView(APIView):
+    """Handles authenticated logout requests."""
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        """Blacklists tokens and removes authentication cookies."""
         blacklist_auth_tokens(
             request.COOKIES["access_token"],
             request.COOKIES.get("refresh_token"),
@@ -97,6 +105,7 @@ class LogoutView(APIView):
         return response
 
     def _create_response(self):
+        """Creates the successful logout response."""
         return Response(
             {
                 "detail": (

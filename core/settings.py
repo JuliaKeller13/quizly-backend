@@ -1,7 +1,7 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
-from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -30,13 +30,15 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    "users",
+    "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
+    "users",
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -128,3 +130,10 @@ REST_FRAMEWORK = {
         "users.api.authentication.CookieJWTAuthentication",
     ),
 }
+
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ["FRONTEND_URLS"].split(",")
+]
+
+CORS_ALLOW_CREDENTIALS = True

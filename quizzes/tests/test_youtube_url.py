@@ -105,30 +105,32 @@ class YoutubeUrlDatabaseTests(TestCase):
             "title": "HTML Quiz",
             "description": "A quiz about HTML.",
             "questions": [
-                {
-                    "question_title": f"Question {number}",
-                    "question_options": ["A", "B", "C", "D"],
-                    "answer": "A",
-                }
+                self._question_data(number)
                 for number in range(10)
             ],
         }
+
+    def _question_data(self, number):
+        """Returns one valid generated question."""
+        return {
+            "question_title": f"Question {number}",
+            "question_options": ["A", "B", "C", "D"],
+            "answer": "A",
+        }
+
+    def _configure_pipeline_mocks(self, mocks):
+        """Configures mocked quiz-generation steps."""
+        mocks[0].return_value = "audio.mp3"
+        mocks[1].return_value = "Transcript"
+        mocks[2].return_value = self._quiz_data()
 
     @patch("quizzes.utils.remove_audio_file")
     @patch("quizzes.utils.generate_quiz_data")
     @patch("quizzes.utils.transcribe_audio")
     @patch("quizzes.utils.download_audio")
-    def test_saves_canonical_youtube_url(
-        self,
-        mock_download,
-        mock_transcribe,
-        mock_generate,
-        mock_remove,
-    ):
+    def test_saves_canonical_youtube_url(self, *mocks):
         """Saves the canonical YouTube watch URL."""
-        mock_download.return_value = "audio.mp3"
-        mock_transcribe.return_value = "Transcript"
-        mock_generate.return_value = self._quiz_data()
+        self._configure_pipeline_mocks(mocks)
 
         response = self.client.post(
             "/api/quizzes/",
@@ -138,8 +140,9 @@ class YoutubeUrlDatabaseTests(TestCase):
         quiz = Quiz.objects.get(user=self.user)
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(
-            quiz.video_url,
-            "https://www.youtube.com/watch?v=abc123XYZ89",
-        )
-        mock_remove.assert_called_once_with("audio.mp3")
+        self.assertEqual(quiz.video_url, self._canonical_url())
+        mocks[3].assert_called_once_with("audio.mp3")
+
+    def _canonical_url(self):
+        """Returns the expected canonical video URL."""
+        return "https://www.youtube.com/watch?v=abc123XYZ89"

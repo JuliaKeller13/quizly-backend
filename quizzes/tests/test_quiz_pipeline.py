@@ -59,82 +59,45 @@ class QuizPipelineTests(TestCase):
     @patch("quizzes.utils.generate_quiz_data")
     @patch("quizzes.utils.transcribe_audio")
     @patch("quizzes.utils.download_audio")
-    def test_pipeline_creates_quiz(
-        self,
-        mock_download,
-        mock_transcribe,
-        mock_generate,
-        mock_save,
-        mock_remove,
-    ):
+    def test_pipeline_creates_quiz(self, *mocks):
         """Runs all generation steps."""
-        quiz = self._configure_pipeline(
-            mock_download,
-            mock_transcribe,
-            mock_generate,
-            mock_save,
-        )
+        quiz = self._configure_pipeline(mocks)
+
         result = create_quiz_from_video(self.video_url, self.user)
-        self._assert_pipeline_calls(
-            mock_download,
-            mock_transcribe,
-            mock_generate,
-            mock_save,
-            mock_remove,
-        )
+
+        self._assert_pipeline_calls(mocks)
         self.assertEqual(result, quiz)
 
-    def _configure_pipeline(
-        self,
-        mock_download,
-        mock_transcribe,
-        mock_generate,
-        mock_save,
-    ):
+    def _configure_pipeline(self, mocks):
         """Configures successful pipeline mocks."""
         quiz = Quiz(user=self.user, title="Generated")
-        mock_download.return_value = "audio.mp3"
-        mock_transcribe.return_value = "Transcript"
-        mock_generate.return_value = self._quiz_data()
-        mock_save.return_value = quiz
+        mocks[0].return_value = "audio.mp3"
+        mocks[1].return_value = "Transcript"
+        mocks[2].return_value = self._quiz_data()
+        mocks[3].return_value = quiz
         return quiz
 
-    def _assert_pipeline_calls(
-        self,
-        mock_download,
-        mock_transcribe,
-        mock_generate,
-        mock_save,
-        mock_remove,
-    ):
+    def _assert_pipeline_calls(self, mocks):
         """Checks calls made by the pipeline."""
-        mock_download.assert_called_once_with(self.video_url)
-        mock_transcribe.assert_called_once_with("audio.mp3")
-        mock_generate.assert_called_once_with("Transcript")
-        mock_save.assert_called_once_with(
-            self._quiz_data(),
-            self.video_url,
-            self.user,
-        )
-        mock_remove.assert_called_once_with("audio.mp3")
+        mocks[0].assert_called_once_with(self.video_url)
+        mocks[1].assert_called_once_with("audio.mp3")
+        mocks[2].assert_called_once_with("Transcript")
+        expected = (self._quiz_data(), self.video_url, self.user)
+        mocks[3].assert_called_once_with(*expected)
+        mocks[4].assert_called_once_with("audio.mp3")
 
     @patch("quizzes.utils.remove_audio_file")
     @patch("quizzes.utils.transcribe_audio")
     @patch("quizzes.utils.download_audio")
-    def test_pipeline_removes_audio_after_error(
-        self,
-        mock_download,
-        mock_transcribe,
-        mock_remove,
-    ):
+    def test_pipeline_removes_audio_after_error(self, *mocks):
         """Removes temporary audio when processing fails."""
-        mock_download.return_value = "audio.mp3"
-        mock_transcribe.side_effect = RuntimeError("Failure")
+        mocks[0].return_value = "audio.mp3"
+        mocks[1].side_effect = RuntimeError("Failure")
 
         with self.assertRaises(RuntimeError):
             create_quiz_from_video(self.video_url, self.user)
 
-        mock_remove.assert_called_once_with("audio.mp3")
+        mocks[2].assert_called_once_with("audio.mp3")
 
     @patch("quizzes.utils.YoutubeDL")
     @patch("quizzes.utils.tempfile.mkdtemp")
@@ -156,19 +119,14 @@ class QuizPipelineTests(TestCase):
     def test_download_options_match_audio_requirements(self):
         """Returns the required yt-dlp audio options."""
         options = get_download_options("audio.%(ext)s")
+        postprocessor = options["postprocessors"][0]
 
         self.assertEqual(options["format"], "bestaudio/best")
         self.assertEqual(options["outtmpl"], "audio.%(ext)s")
         self.assertTrue(options["quiet"])
         self.assertTrue(options["noplaylist"])
-        self.assertEqual(
-            options["postprocessors"][0]["key"],
-            "FFmpegExtractAudio",
-        )
-        self.assertEqual(
-            options["postprocessors"][0]["preferredcodec"],
-            "mp3",
-        )
+        self.assertEqual(postprocessor["key"], "FFmpegExtractAudio")
+        self.assertEqual(postprocessor["preferredcodec"], "mp3")
 
     @patch("quizzes.utils.whisper.load_model")
     def test_transcribe_audio_uses_whisper(self, mock_load_model):

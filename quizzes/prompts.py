@@ -5,8 +5,8 @@ QUIZ_PROMPT_TEMPLATE = """
 Based on the following transcript, generate a quiz in valid JSON format.
 The quiz must follow this exact structure:
 {
-  "title": "Create a concise quiz title based on the topic.",
-  "description": "Summarize the transcript in no more than 150 characters.",
+  "title": "Create a concise quiz title based on the topic of the transcript.",
+  "description": "Summarize the transcript in no more than 150 characters. Do not include any quiz questions or answers.",
   "questions": [
     {
       "question_title": "The question goes here.",

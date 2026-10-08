@@ -33,9 +33,7 @@ class QuizPipelineTests(TestCase):
             email="owner@example.com",
             password="ExamplePassword123!",
         )
-        self.video_url = (
-            "https://www.youtube.com/watch?v=example"
-        )
+        self.video_url = "https://www.youtube.com/watch?v=example"
 
     def _question_data(self, number):
         """Returns generated data for one question."""
@@ -76,10 +74,7 @@ class QuizPipelineTests(TestCase):
             mock_generate,
             mock_save,
         )
-        result = create_quiz_from_video(
-            self.video_url,
-            self.user,
-        )
+        result = create_quiz_from_video(self.video_url, self.user)
         self._assert_pipeline_calls(
             mock_download,
             mock_transcribe,
@@ -151,17 +146,12 @@ class QuizPipelineTests(TestCase):
         """Downloads audio into a temporary directory."""
         mock_mkdtemp.return_value = "temp"
         downloader = MagicMock()
-        mock_youtube_dl.return_value.__enter__.return_value = (
-            downloader
-        )
+        mock_youtube_dl.return_value.__enter__.return_value = downloader
 
         result = download_audio(self.video_url)
 
         downloader.download.assert_called_once_with([self.video_url])
-        self.assertEqual(
-            result,
-            str(Path("temp") / "audio.mp3"),
-        )
+        self.assertEqual(result, str(Path("temp") / "audio.mp3"))
 
     def test_download_options_match_audio_requirements(self):
         """Returns the required yt-dlp audio options."""
@@ -171,12 +161,17 @@ class QuizPipelineTests(TestCase):
         self.assertEqual(options["outtmpl"], "audio.%(ext)s")
         self.assertTrue(options["quiet"])
         self.assertTrue(options["noplaylist"])
+        self.assertEqual(
+            options["postprocessors"][0]["key"],
+            "FFmpegExtractAudio",
+        )
+        self.assertEqual(
+            options["postprocessors"][0]["preferredcodec"],
+            "mp3",
+        )
 
     @patch("quizzes.utils.whisper.load_model")
-    def test_transcribe_audio_uses_whisper(
-        self,
-        mock_load_model,
-    ):
+    def test_transcribe_audio_uses_whisper(self, mock_load_model):
         """Transcribes downloaded audio with Whisper."""
         model = MagicMock()
         mock_load_model.return_value = model
@@ -191,10 +186,7 @@ class QuizPipelineTests(TestCase):
         self.assertEqual(result, "Generated transcript")
 
     @patch("quizzes.utils.genai.Client")
-    def test_generate_quiz_data_uses_gemini(
-        self,
-        mock_client,
-    ):
+    def test_generate_quiz_data_uses_gemini(self, mock_client):
         """Generates structured quiz data with Gemini."""
         client = MagicMock()
         response = MagicMock()
@@ -219,6 +211,19 @@ class QuizPipelineTests(TestCase):
         """Rejects questions without four answer options."""
         quiz_data = self._quiz_data()
         quiz_data["questions"][0]["question_options"].pop()
+
+        with self.assertRaises(ValueError):
+            validate_generated_quiz_data(quiz_data)
+
+    def test_generated_question_requires_distinct_options(self):
+        """Rejects duplicate answer options."""
+        quiz_data = self._quiz_data()
+        quiz_data["questions"][0]["question_options"] = [
+            "A",
+            "A",
+            "C",
+            "D",
+        ]
 
         with self.assertRaises(ValueError):
             validate_generated_quiz_data(quiz_data)
@@ -252,10 +257,7 @@ class QuizPipelineTests(TestCase):
         )
 
     @patch("quizzes.utils.shutil.rmtree")
-    def test_remove_audio_file_removes_temp_directory(
-        self,
-        mock_rmtree,
-    ):
+    def test_remove_audio_file_removes_temp_directory(self, mock_rmtree):
         """Removes the directory containing temporary audio."""
         audio_path = str(Path("temp") / "audio.mp3")
 
@@ -274,7 +276,6 @@ class QuizPipelineTests(TestCase):
         with self.assertRaises(ValueError):
             validate_generated_quiz_data(quiz_data)
 
-
     def test_generated_question_requires_all_fields(self):
         """Rejects generated questions with missing fields."""
         quiz_data = self._quiz_data()
@@ -282,7 +283,6 @@ class QuizPipelineTests(TestCase):
 
         with self.assertRaises(ValueError):
             validate_generated_quiz_data(quiz_data)
-
 
     def test_generated_answer_must_match_option(self):
         """Rejects answers not contained in question options."""
@@ -292,7 +292,6 @@ class QuizPipelineTests(TestCase):
         with self.assertRaises(ValueError):
             validate_generated_quiz_data(quiz_data)
 
-
     def test_build_quiz_prompt_contains_required_instructions(self):
         """Builds a prompt with the required quiz structure."""
         prompt = build_quiz_prompt("Transcript text")
@@ -300,8 +299,9 @@ class QuizPipelineTests(TestCase):
         self.assertIn("valid JSON format", prompt)
         self.assertIn("exactly 10 questions", prompt)
         self.assertIn("exactly 4 distinct answer options", prompt)
+        self.assertIn("no more than 150 characters", prompt)
+        self.assertIn("Do not include any quiz questions or answers", prompt)
         self.assertIn("Transcript text", prompt)
-
 
     @patch("quizzes.utils.build_quiz_prompt", return_value="PROMPT")
     def test_request_quiz_data_uses_plain_text_response(
@@ -313,6 +313,7 @@ class QuizPipelineTests(TestCase):
 
         request_quiz_data(client, "Transcript")
 
+        mock_build_prompt.assert_called_once_with("Transcript")
         client.models.generate_content.assert_called_once_with(
             model="gemini-3.5-flash",
             contents="PROMPT",

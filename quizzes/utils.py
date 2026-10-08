@@ -14,25 +14,28 @@ from quizzes.models import Question, Quiz
 from quizzes.prompts import QUIZ_PROMPT_TEMPLATE
 
 
+YOUTUBE_PATH_PREFIXES = {"shorts", "embed"}
+
+
 def get_quiz_for_user(quiz_id, user):
     """Returns a quiz if it exists and belongs to the user."""
     try:
         quiz = Quiz.objects.prefetch_related("questions").get(id=quiz_id)
     except Quiz.DoesNotExist as error:
         raise NotFound("Quiz not found.") from error
-
-    if quiz.user != user:
-        raise PermissionDenied(
-            "You do not have permission for this quiz."
-        )
-
+    _ensure_quiz_owner(quiz, user)
     return quiz
+
+
+def _ensure_quiz_owner(quiz, user):
+    """Rejects access to a quiz owned by another user."""
+    if quiz.user != user:
+        raise PermissionDenied("You do not have permission for this quiz.")
 
 
 def create_quiz_from_video(video_url, user):
     """Runs the complete quiz generation pipeline."""
     audio_path = download_audio(video_url)
-
     try:
         transcript = transcribe_audio(audio_path)
         quiz_data = generate_quiz_data(transcript)
@@ -44,15 +47,21 @@ def create_quiz_from_video(video_url, user):
 def download_audio(video_url):
     """Downloads YouTube audio and converts it to MP3."""
     temp_dir = tempfile.mkdtemp()
-    output_template = str(
-        Path(temp_dir) / "audio.%(ext)s"
-    )
+    output_template = str(Path(temp_dir) / "audio.%(ext)s")
     options = get_download_options(output_template)
-
     with YoutubeDL(options) as downloader:
         downloader.download([video_url])
-
     return str(Path(temp_dir) / "audio.mp3")
+
+
+def _get_mp3_postprocessors():
+    """Returns the FFmpeg configuration for MP3 extraction."""
+    return [
+        {
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+        }
+    ]
 
 
 def get_download_options(output_template):
@@ -60,12 +69,7 @@ def get_download_options(output_template):
     return {
         "format": "bestaudio/best",
         "outtmpl": output_template,
-        "postprocessors": [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-            }
-        ],
+        "postprocessors": _get_mp3_postprocessors(),
         "quiet": True,
         "noplaylist": True,
     }
@@ -81,12 +85,10 @@ def transcribe_audio(audio_path):
 def generate_quiz_data(transcript):
     """Generates structured quiz data with Gemini."""
     client = genai.Client()
-
     try:
         response = request_quiz_data(client, transcript)
     finally:
         client.close()
-
     quiz_data = parse_quiz_response(response.text)
     validate_generated_quiz_data(quiz_data)
     return quiz_data
@@ -108,35 +110,35 @@ def build_quiz_prompt(transcript):
 def validate_generated_quiz_data(quiz_data):
     """Validates generated quiz structure."""
     required = {"title", "description", "questions"}
-
     if not required.issubset(quiz_data):
         raise ValueError("Generated quiz data is incomplete.")
-
     questions = quiz_data["questions"]
-
-    if len(questions) != 10:
-        raise ValueError("Generated quiz must contain 10 questions.")
-
+    _validate_question_count(questions)
     for question in questions:
         validate_generated_question(question)
 
 
+def _validate_question_count(questions):
+    """Validates the required number of generated questions."""
+    if len(questions) != 10:
+        raise ValueError("Generated quiz must contain 10 questions.")
+
+
 def validate_generated_question(question):
     """Validates one generated quiz question."""
-    required = {
-        "question_title",
-        "question_options",
-        "answer",
-    }
-
+    required = {"question_title", "question_options", "answer"}
     if not required.issubset(question):
         raise ValueError("Generated question is incomplete.")
+    _validate_question_options(question)
 
+
+def _validate_question_options(question):
+    """Validates generated answer options."""
     options = question["question_options"]
-
     if len(options) != 4:
         raise ValueError("Each question must contain 4 options.")
-
+    if len(set(options)) != 4:
+        raise ValueError("Question options must be distinct.")
     if question["answer"] not in options:
         raise ValueError("Answer must match one question option.")
 
@@ -144,16 +146,19 @@ def validate_generated_question(question):
 def save_generated_quiz(quiz_data, video_url, user):
     """Saves generated quiz data and questions."""
     validate_generated_quiz_data(quiz_data)
-
     with transaction.atomic():
         quiz = create_quiz(quiz_data, video_url, user)
-        questions = [
-            build_question(quiz, data)
-            for data in quiz_data["questions"]
-        ]
+        questions = build_questions(quiz, quiz_data["questions"])
         Question.objects.bulk_create(questions)
-
     return quiz
+
+
+def build_questions(quiz, question_data):
+    """Builds all unsaved questions for a generated quiz."""
+    return [
+        build_question(quiz, data)
+        for data in question_data
+    ]
 
 
 def create_quiz(quiz_data, video_url, user):
@@ -188,7 +193,7 @@ def remove_audio_file(audio_path):
 def remove_markdown_fences(response_text):
     """Removes Markdown code fences from a Gemini response."""
     cleaned_text = response_text.strip()
-    if cleaned_text.startswith("```json"):
+    if cleaned_text.lower().startswith("```json"):
         cleaned_text = cleaned_text[7:]
     elif cleaned_text.startswith("```"):
         cleaned_text = cleaned_text[3:]
@@ -206,17 +211,18 @@ def parse_quiz_response(response_text):
 def extract_youtube_video_id(url):
     """Extracts the video ID from a supported YouTube URL."""
     parsed_url = urlparse(url)
-
     if parsed_url.hostname == "youtu.be":
         return parsed_url.path.strip("/").split("/")[0]
-
     if parsed_url.path == "/watch":
         return parse_qs(parsed_url.query).get("v", [""])[0]
+    return _extract_youtube_path_id(parsed_url.path)
 
-    path_parts = parsed_url.path.strip("/").split("/")
-    if len(path_parts) == 2 and path_parts[0] in {"shorts", "embed"}:
+
+def _extract_youtube_path_id(path):
+    """Extracts a video ID from an embed or Shorts path."""
+    path_parts = path.strip("/").split("/")
+    if len(path_parts) == 2 and path_parts[0] in YOUTUBE_PATH_PREFIXES:
         return path_parts[1]
-
     return ""
 
 

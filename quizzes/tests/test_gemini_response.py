@@ -14,13 +14,17 @@ class GeminiResponseTests(SimpleTestCase):
             "title": "HTML Quiz",
             "description": "A short quiz about HTML.",
             "questions": [
-                {
-                    "question_title": f"Question {number}",
-                    "question_options": ["A", "B", "C", "D"],
-                    "answer": "A",
-                }
+                self._question_data(number)
                 for number in range(10)
             ],
+        }
+
+    def _question_data(self, number):
+        """Returns one valid generated question."""
+        return {
+            "question_title": f"Question {number}",
+            "question_options": ["A", "B", "C", "D"],
+            "answer": "A",
         }
 
     def test_removes_json_markdown_fences(self):
@@ -38,6 +42,14 @@ class GeminiResponseTests(SimpleTestCase):
         cleaned_text = remove_markdown_fences(response_text)
 
         self.assertEqual(json.loads(cleaned_text), self.quiz_data)
+
+    def test_parses_uppercase_json_markdown_response(self):
+        """Parses JSON wrapped in uppercase Markdown fences."""
+        response_text = f"```JSON\n{json.dumps(self.quiz_data)}\n```"
+
+        result = parse_quiz_response(response_text)
+
+        self.assertEqual(result, self.quiz_data)
 
     def test_parses_plain_json_response(self):
         """Parses a valid plain JSON Gemini response."""

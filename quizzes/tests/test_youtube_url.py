@@ -77,7 +77,6 @@ class YoutubeUrlTests(SimpleTestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn("url", serializer.errors)
 
-
     def test_rejects_unsupported_youtube_path(self):
         """Rejects YouTube URLs that do not point to a video."""
         serializer = QuizCreateSerializer(
@@ -136,7 +135,6 @@ class YoutubeUrlDatabaseTests(TestCase):
             {"url": "https://youtu.be/abc123XYZ89"},
             format="json",
         )
-
         quiz = Quiz.objects.get(user=self.user)
 
         self.assertEqual(response.status_code, 201)
@@ -144,3 +142,4 @@ class YoutubeUrlDatabaseTests(TestCase):
             quiz.video_url,
             "https://www.youtube.com/watch?v=abc123XYZ89",
         )
+        mock_remove.assert_called_once_with("audio.mp3")

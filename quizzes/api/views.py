@@ -1,3 +1,4 @@
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -44,3 +45,9 @@ class QuizDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(QuizSerializer(quiz).data)
+
+    def delete(self, request, quiz_id):
+        """Deletes an owned quiz."""
+        quiz = get_quiz_for_user(quiz_id, request.user)
+        quiz.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

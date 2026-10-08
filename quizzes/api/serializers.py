@@ -32,3 +32,14 @@ class QuizSerializer(serializers.ModelSerializer):
             "video_url",
             "questions",
         ]
+
+
+class QuizUpdateSerializer(serializers.ModelSerializer):
+    """Validates editable quiz fields."""
+
+    class Meta:
+        model = Quiz
+        fields = [
+            "title",
+            "description",
+        ]

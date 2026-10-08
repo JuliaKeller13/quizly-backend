@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from quizzes.utils import get_quiz_for_user
 from quizzes.models import Quiz
 
-from .serializers import QuizSerializer
+from .serializers import QuizSerializer, QuizUpdateSerializer
 
 
 class QuizListView(APIView):
@@ -23,7 +23,7 @@ class QuizListView(APIView):
 
 
 class QuizDetailView(APIView):
-    """Returns a single quiz belonging to the authenticated user."""
+    """Handles operations for a single owned quiz."""
 
     permission_classes = [IsAuthenticated]
 
@@ -32,3 +32,15 @@ class QuizDetailView(APIView):
         quiz = get_quiz_for_user(quiz_id, request.user)
         serializer = QuizSerializer(quiz)
         return Response(serializer.data)
+
+    def patch(self, request, quiz_id):
+        """Partially updates an owned quiz."""
+        quiz = get_quiz_for_user(quiz_id, request.user)
+        serializer = QuizUpdateSerializer(
+            quiz,
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(QuizSerializer(quiz).data)

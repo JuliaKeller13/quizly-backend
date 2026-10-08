@@ -1,6 +1,7 @@
 [run]
 source =
     users
+    quizzes
     core
 
 omit =

@@ -3,24 +3,39 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from quizzes.utils import get_quiz_for_user
 from quizzes.models import Quiz
+from quizzes.utils import create_quiz_from_video, get_quiz_for_user
 
-from .serializers import QuizSerializer, QuizUpdateSerializer
+from .serializers import (
+    QuizCreateSerializer,
+    QuizSerializer,
+    QuizUpdateSerializer,
+)
 
 
 class QuizListView(APIView):
-    """Lists quizzes belonging to the authenticated user."""
+    """Handles quiz collection requests."""
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """Returns only quizzes owned by the current user."""
+        """Returns quizzes owned by the current user."""
         quizzes = Quiz.objects.filter(
             user=request.user
         ).prefetch_related("questions")
         serializer = QuizSerializer(quizzes, many=True)
         return Response(serializer.data)
+
+    def post(self, request):
+        """Creates a quiz from a YouTube video."""
+        serializer = QuizCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        quiz = create_quiz_from_video(
+            serializer.validated_data["url"],
+            request.user,
+        )
+        data = QuizSerializer(quiz).data
+        return Response(data, status=status.HTTP_201_CREATED)
 
 
 class QuizDetailView(APIView):

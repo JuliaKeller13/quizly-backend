@@ -1,6 +1,8 @@
+import json
 import shutil
 import tempfile
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import whisper
 from django.db import transaction
@@ -9,46 +11,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from yt_dlp import YoutubeDL
 
 from quizzes.models import Question, Quiz
-
-
-QUESTION_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "question_title": {"type": "string"},
-        "question_options": {
-            "type": "array",
-            "items": {"type": "string"},
-            "minItems": 4,
-            "maxItems": 4,
-        },
-        "answer": {"type": "string"},
-    },
-    "required": [
-        "question_title",
-        "question_options",
-        "answer",
-    ],
-}
-
-
-QUIZ_RESPONSE_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "title": {"type": "string"},
-        "description": {"type": "string"},
-        "questions": {
-            "type": "array",
-            "items": QUESTION_SCHEMA,
-            "minItems": 10,
-            "maxItems": 10,
-        },
-    },
-    "required": [
-        "title",
-        "description",
-        "questions",
-    ],
-}
+from quizzes.prompts import QUIZ_PROMPT_TEMPLATE
 
 
 def get_quiz_for_user(quiz_id, user):
@@ -104,6 +67,7 @@ def get_download_options(output_template):
             }
         ],
         "quiet": True,
+        "noplaylist": True,
     }
 
 
@@ -123,36 +87,22 @@ def generate_quiz_data(transcript):
     finally:
         client.close()
 
-    quiz_data = response.parsed
+    quiz_data = parse_quiz_response(response.text)
     validate_generated_quiz_data(quiz_data)
     return quiz_data
 
 
 def request_quiz_data(client, transcript):
-    """Requests structured quiz data from Gemini."""
+    """Requests quiz data from Gemini."""
     return client.models.generate_content(
-        model="gemini-3.8-flash",
+        model="gemini-3.5-flash",
         contents=build_quiz_prompt(transcript),
-        config=get_gemini_config(),
     )
 
 
 def build_quiz_prompt(transcript):
-    """Builds the prompt used to generate a quiz."""
-    return (
-        "Create an educational quiz using only the information "
-        "in this transcript. Use the transcript's language. "
-        "Each question must have exactly one correct answer.\n\n"
-        f"Transcript:\n{transcript}"
-    )
-
-
-def get_gemini_config():
-    """Returns Gemini structured-output configuration."""
-    return {
-        "response_mime_type": "application/json",
-        "response_json_schema": QUIZ_RESPONSE_SCHEMA,
-    }
+    """Builds the prompt used to generate quiz data."""
+    return f"{QUIZ_PROMPT_TEMPLATE}\nTranscript:\n{transcript}"
 
 
 def validate_generated_quiz_data(quiz_data):
@@ -233,3 +183,44 @@ def remove_audio_file(audio_path):
         temp_dir,
         ignore_errors=True,
     )
+
+
+def remove_markdown_fences(response_text):
+    """Removes Markdown code fences from a Gemini response."""
+    cleaned_text = response_text.strip()
+    if cleaned_text.startswith("```json"):
+        cleaned_text = cleaned_text[7:]
+    elif cleaned_text.startswith("```"):
+        cleaned_text = cleaned_text[3:]
+    if cleaned_text.endswith("```"):
+        cleaned_text = cleaned_text[:-3]
+    return cleaned_text.strip()
+
+
+def parse_quiz_response(response_text):
+    """Parses Gemini response text into quiz data."""
+    cleaned_text = remove_markdown_fences(response_text)
+    return json.loads(cleaned_text)
+
+
+def extract_youtube_video_id(url):
+    """Extracts the video ID from a supported YouTube URL."""
+    parsed_url = urlparse(url)
+
+    if parsed_url.hostname == "youtu.be":
+        return parsed_url.path.strip("/").split("/")[0]
+
+    if parsed_url.path == "/watch":
+        return parse_qs(parsed_url.query).get("v", [""])[0]
+
+    path_parts = parsed_url.path.strip("/").split("/")
+    if len(path_parts) == 2 and path_parts[0] in {"shorts", "embed"}:
+        return path_parts[1]
+
+    return ""
+
+
+def normalize_youtube_url(url):
+    """Returns a YouTube URL in the canonical watch format."""
+    video_id = extract_youtube_video_id(url)
+    return f"https://www.youtube.com/watch?v={video_id}"

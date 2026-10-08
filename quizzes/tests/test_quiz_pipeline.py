@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -6,9 +7,12 @@ from django.test import TestCase
 
 from quizzes.models import Question, Quiz
 from quizzes.utils import (
+    build_quiz_prompt,
     create_quiz_from_video,
     download_audio,
     generate_quiz_data,
+    get_download_options,
+    request_quiz_data,
     remove_audio_file,
     save_generated_quiz,
     transcribe_audio,
@@ -159,6 +163,15 @@ class QuizPipelineTests(TestCase):
             str(Path("temp") / "audio.mp3"),
         )
 
+    def test_download_options_match_audio_requirements(self):
+        """Returns the required yt-dlp audio options."""
+        options = get_download_options("audio.%(ext)s")
+
+        self.assertEqual(options["format"], "bestaudio/best")
+        self.assertEqual(options["outtmpl"], "audio.%(ext)s")
+        self.assertTrue(options["quiet"])
+        self.assertTrue(options["noplaylist"])
+
     @patch("quizzes.utils.whisper.load_model")
     def test_transcribe_audio_uses_whisper(
         self,
@@ -185,7 +198,7 @@ class QuizPipelineTests(TestCase):
         """Generates structured quiz data with Gemini."""
         client = MagicMock()
         response = MagicMock()
-        response.parsed = self._quiz_data()
+        response.text = json.dumps(self._quiz_data())
         mock_client.return_value = client
         client.models.generate_content.return_value = response
 
@@ -278,3 +291,29 @@ class QuizPipelineTests(TestCase):
 
         with self.assertRaises(ValueError):
             validate_generated_quiz_data(quiz_data)
+
+
+    def test_build_quiz_prompt_contains_required_instructions(self):
+        """Builds a prompt with the required quiz structure."""
+        prompt = build_quiz_prompt("Transcript text")
+
+        self.assertIn("valid JSON format", prompt)
+        self.assertIn("exactly 10 questions", prompt)
+        self.assertIn("exactly 4 distinct answer options", prompt)
+        self.assertIn("Transcript text", prompt)
+
+
+    @patch("quizzes.utils.build_quiz_prompt", return_value="PROMPT")
+    def test_request_quiz_data_uses_plain_text_response(
+        self,
+        mock_build_prompt,
+    ):
+        """Requests quiz data without structured output config."""
+        client = MagicMock()
+
+        request_quiz_data(client, "Transcript")
+
+        client.models.generate_content.assert_called_once_with(
+            model="gemini-3.5-flash",
+            contents="PROMPT",
+        )

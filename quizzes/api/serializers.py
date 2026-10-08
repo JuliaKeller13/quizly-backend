@@ -1,6 +1,10 @@
 from rest_framework import serializers
 
 from quizzes.models import Question, Quiz
+from quizzes.utils import (
+    extract_youtube_video_id,
+    normalize_youtube_url,
+)
 from urllib.parse import urlparse
 
 
@@ -52,8 +56,8 @@ class QuizCreateSerializer(serializers.Serializer):
     url = serializers.URLField()
 
     def validate_url(self, value):
-        """Allows only supported YouTube URLs."""
-        hostname = urlparse(value).hostname or ""
+        """Validates and normalizes a YouTube video URL."""
+        parsed_url = urlparse(value)
         allowed_hosts = {
             "youtube.com",
             "www.youtube.com",
@@ -61,9 +65,10 @@ class QuizCreateSerializer(serializers.Serializer):
             "youtu.be",
         }
 
-        if hostname.lower() not in allowed_hosts:
-            raise serializers.ValidationError(
-                "Only YouTube URLs are supported."
-            )
+        if parsed_url.hostname not in allowed_hosts:
+            raise serializers.ValidationError("Only YouTube URLs are allowed.")
 
-        return value
+        if not extract_youtube_video_id(value):
+            raise serializers.ValidationError("Invalid YouTube video URL.")
+
+        return normalize_youtube_url(value)

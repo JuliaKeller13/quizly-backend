@@ -41,7 +41,23 @@
 
 <hr>
 
-<h2>About</h2>
+<h2>Table of Contents</h2>
+
+<ul>
+  <li><a href="#about">About</a></li>
+  <li><a href="#api-overview">API Overview</a></li>
+  <li><a href="#authentication">Authentication</a></li>
+  <li><a href="#quiz-generation-pipeline">Quiz Generation Pipeline</a></li>
+  <li><a href="#prerequisites">Prerequisites</a></li>
+  <li><a href="#setup">Setup</a></li>
+  <li><a href="#frontend">Frontend</a></li>
+  <li><a href="#testing">Testing</a></li>
+  <li><a href="#project-structure">Project Structure</a></li>
+  <li><a href="#key-implementation-details">Key Implementation Details</a></li>
+  <li><a href="#project-context">Project Context</a></li>
+</ul>
+
+<h2 id="about">About</h2>
 
 <p>
   <strong>Quizly</strong> turns YouTube videos into automatically generated quizzes.
@@ -65,56 +81,25 @@
   YouTube-to-quiz processing pipeline.
 </blockquote>
 
-<h2>API Overview</h2>
+<h2 id="api-overview">API Overview</h2>
 
 <table>
-  <tr>
-    <th>Method</th>
-    <th>Endpoint</th>
-    <th>Resource</th>
-  </tr>
-  <tr>
-    <td>POST</td>
-    <td><code>/api/register/</code></td>
-    <td>Registration</td>
-  </tr>
-  <tr>
-    <td>POST</td>
-    <td><code>/api/login/</code></td>
-    <td>Login</td>
-  </tr>
-  <tr>
-    <td>POST</td>
-    <td><code>/api/token/refresh/</code></td>
-    <td>Refresh access token</td>
-  </tr>
-  <tr>
-    <td>POST</td>
-    <td><code>/api/logout/</code></td>
-    <td>Logout</td>
-  </tr>
-  <tr>
-    <td>GET / POST</td>
-    <td><code>/api/quizzes/</code></td>
-    <td>Quiz collection</td>
-  </tr>
-  <tr>
-    <td>GET / PATCH / DELETE</td>
-    <td><code>/api/quizzes/{quiz_id}/</code></td>
-    <td>Quiz detail</td>
-  </tr>
+  <tr><th>Method</th><th>Endpoint</th><th>Resource</th></tr>
+  <tr><td>POST</td><td><code>/api/register/</code></td><td>Registration</td></tr>
+  <tr><td>POST</td><td><code>/api/login/</code></td><td>Login</td></tr>
+  <tr><td>POST</td><td><code>/api/token/refresh/</code></td><td>Refresh access token</td></tr>
+  <tr><td>POST</td><td><code>/api/logout/</code></td><td>Logout</td></tr>
+  <tr><td>GET / POST</td><td><code>/api/quizzes/</code></td><td>Quiz collection</td></tr>
+  <tr><td>GET / PATCH / DELETE</td><td><code>/api/quizzes/{quiz_id}/</code></td><td>Quiz detail</td></tr>
 </table>
 
-<h2>Authentication</h2>
+<h2 id="authentication">Authentication</h2>
 
 <p>
-  Protected endpoints use JWT authentication with
-  <strong>HttpOnly cookies</strong>.
+  Protected endpoints use JWT authentication with <strong>HttpOnly cookies</strong>.
 </p>
 
-<p>
-  After login, the backend sets:
-</p>
+<p>After login, the backend sets:</p>
 
 <pre><code>access_token
 refresh_token</code></pre>
@@ -134,7 +119,7 @@ refresh_token</code></pre>
   On logout, both cookies are deleted and the current tokens are invalidated.
 </p>
 
-<h2>Quiz Generation Pipeline</h2>
+<h2 id="quiz-generation-pipeline">Quiz Generation Pipeline</h2>
 
 <pre>
 YouTube URL
@@ -170,16 +155,12 @@ Quiz + 10 Questions
  Database
 </pre>
 
-<p>
-  Supported YouTube URLs are normalized before they are stored.
-</p>
+<p>Supported YouTube URLs are normalized before they are stored.</p>
 
 <p>Example:</p>
-
 <pre><code>https://youtu.be/abc123XYZ89</code></pre>
 
 <p>is stored as:</p>
-
 <pre><code>https://www.youtube.com/watch?v=abc123XYZ89</code></pre>
 
 <p>
@@ -187,7 +168,24 @@ Quiz + 10 Questions
   before the response is processed with <code>json.loads()</code>.
 </p>
 
-<h2>Setup</h2>
+<h2 id="prerequisites">Prerequisites</h2>
+
+<p>
+  Before setting up the project, make sure the following tools are available:
+</p>
+
+<ul>
+  <li>Python 3.14 or a compatible Python version</li>
+  <li>FFmpeg installed globally and available through the system <code>PATH</code></li>
+</ul>
+
+<p>Check the installations:</p>
+
+<pre><code>python --version
+ffmpeg -version
+ffprobe -version</code></pre>
+
+<h2 id="setup">Setup</h2>
 
 <h3>1. Clone the repository</h3>
 
@@ -210,23 +208,23 @@ source .venv/bin/activate</code></pre>
 
 <pre><code>python -m pip install -r requirements.txt</code></pre>
 
-<h3>4. Install FFmpeg</h3>
+<h3>4. Configure the environment</h3>
 
 <p>
-  FFmpeg must be installed globally and available through the system
-  <code>PATH</code>.
+  Create a local <code>.env</code> file by copying the provided
+  <code>.env.template</code>.
 </p>
 
-<p>Check the installation:</p>
+<h4>Windows PowerShell</h4>
 
-<pre><code>ffmpeg -version
-ffprobe -version</code></pre>
+<pre><code>Copy-Item .env.template .env</code></pre>
 
-<h3>5. Configure the environment</h3>
+<h4>macOS / Linux</h4>
+
+<pre><code>cp .env.template .env</code></pre>
 
 <p>
-  Create a local <code>.env</code> file in the project root.
-  Use <code>.env.template</code> as a reference:
+  Then open <code>.env</code> and replace the placeholder values where required:
 </p>
 
 <pre><code>SECRET_KEY=your-secret-key-here
@@ -238,35 +236,29 @@ GEMINI_API_KEY=your-gemini-api-key-here</code></pre>
   Never commit the real <code>.env</code> file, secret key or Gemini API key.
 </blockquote>
 
-<h3>6. Prepare the database</h3>
+<h3>5. Prepare the database</h3>
 
 <pre><code>python manage.py migrate</code></pre>
 
-<h3>7. Create a superuser</h3>
+<h3>6. Create a superuser</h3>
 
-<p>
-  Create an administrator account for access to the Django Admin interface:
-</p>
+<p>Create an administrator account for access to the Django Admin interface:</p>
 
 <pre><code>python manage.py createsuperuser</code></pre>
 
-<h3>8. Start the server</h3>
+<h3>7. Start the server</h3>
 
 <pre><code>python manage.py runserver</code></pre>
 
 <p>Backend:</p>
-
 <pre><code>http://127.0.0.1:8000/</code></pre>
 
 <p>Django Admin:</p>
-
 <pre><code>http://127.0.0.1:8000/admin/</code></pre>
 
-<h2>Frontend</h2>
+<h2 id="frontend">Frontend</h2>
 
-<p>
-  The frontend was provided by Developer Akademie:
-</p>
+<p>The frontend was provided by Developer Akademie:</p>
 
 <p>
   <a href="https://github.com/Developer-Akademie-Backendkurs/project.Quizly">
@@ -274,9 +266,7 @@ GEMINI_API_KEY=your-gemini-api-key-here</code></pre>
   </a>
 </p>
 
-<p>
-  For local development it connects to:
-</p>
+<p>For local development it connects to:</p>
 
 <pre><code>http://127.0.0.1:8000/api/</code></pre>
 
@@ -285,32 +275,27 @@ GEMINI_API_KEY=your-gemini-api-key-here</code></pre>
   sends the authentication cookies.
 </p>
 
-<h2>Testing</h2>
+<h2 id="testing">Testing</h2>
 
 <p>Run all tests:</p>
-
 <pre><code>python manage.py test --settings=core.settings_test</code></pre>
 
 <p>Run coverage:</p>
-
 <pre><code>python -m coverage erase
 python -m coverage run manage.py test --settings=core.settings_test
 python -m coverage report -m</code></pre>
 
 <p>Run Django's system check:</p>
-
 <pre><code>python manage.py check</code></pre>
 
 <div align="center">
-
 <img
   src="https://img.shields.io/badge/Application%20Coverage-100%25-success"
   alt="100 percent application coverage"
 />
-
 </div>
 
-<h2>Project Structure</h2>
+<h2 id="project-structure">Project Structure</h2>
 
 <pre>
 quizly-backend/
@@ -344,7 +329,7 @@ quizly-backend/
 └── requirements.txt
 </pre>
 
-<h2>Key Implementation Details</h2>
+<h2 id="key-implementation-details">Key Implementation Details</h2>
 
 <p>
   <strong>YouTube processing:</strong>
@@ -376,7 +361,7 @@ quizly-backend/
   pipeline raises an error.
 </p>
 
-<h2>Project Context</h2>
+<h2 id="project-context">Project Context</h2>
 
 <p>
   Quizly was implemented as a learning project within the
